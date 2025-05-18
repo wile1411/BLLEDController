@@ -48,7 +48,7 @@ extern "C"
     typedef struct GlobalVariablesStruct{
         char SSID[32];
         char APPW[63];
-        String FWVersion = "Experimental 27.3.24";
+        String FWVersion = "Experimental 2025.5.15";
         String Host = "BLLED";
         bool started = false;
     } GlobalVariables;
@@ -61,7 +61,7 @@ extern "C"
         char accessCode[9];             //BBLP Access Code - used for MQTT reports
         char serialNumber[16];          //BBLP Serial Number - used for MQTT reports
 
-        char BSSID[18];                 //Nominated AP to connect to (Useful if multiple accesspoints with same name)
+        char BSSID[20];                 //Nominated AP to connect to (Useful if multiple accesspoints with same name)
         int brightness = 20;            //Brightness of LEDS - Default to 20% in case user use LED's that draw too much power for their PS
         bool rescanWiFiNetwork = false; //Scans available WiFi networks for strongest signal
         // LED Behaviour (Choose One)

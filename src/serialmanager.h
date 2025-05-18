@@ -16,7 +16,12 @@ void serialLoop(){
         String input = Serial.readStringUntil('\n');
         JsonDocument doc;
         deserializeJson(doc, input);
-        if (doc.containsKey("ssid") && doc.containsKey("pass")) {
+
+        //containsKey() is Deprecated, just read from value and test if not null
+        const char* passKeyValue = doc["pass"];
+        const char* ssidKeyValue = doc["ssid"];
+        if (ssidKeyValue && ssidKeyValue){
+        //if (doc.containsKey("ssid") && doc.containsKey("pass")) {
             Serial.print(F("SSID "));
             Serial.println(doc["ssid"].as<String>());
             Serial.print(F("PASS "));

@@ -47,7 +47,8 @@ void connectMqtt(){
         //Abort MQTT connection attempt when no Wifi
         return;
     }
-    if (!mqttClient.connected() && (millis() - mqttattempt) >= 3000){   
+    if (!mqttClient.connected() && (millis() - mqttattempt) >= 3000){
+        tweenToColor(10,10,10,10,10);
         Serial.println(F("Connecting to mqtt..."));
         if (mqttClient.connect(clientId.c_str(),"bblp",printerConfig.accessCode)){
             Serial.print(F("MQTT connected, subscribing to MQTT Topic:  "));
@@ -63,9 +64,13 @@ void connectMqtt(){
             Serial.print(F("  "));
             ParseMQTTState(mqttClient.state());
             if(mqttClient.state() == 5){
-                Serial.println(F("Restarting Device"));
-                delay(1000);
-                ESP.restart();                
+                delay(500);
+                tweenToColor(127,0,0,0,0); //light red, indicating not authorized
+                delay(500);
+                mqttattempt = (millis()-3000);
+                //Serial.println(F("Restarting Device"));
+                //delay(1000);
+                //ESP.restart();                
             }
         }
     }
@@ -99,15 +104,19 @@ void ParseCallback(char *topic, byte *payload, unsigned int length){
         }
 
         bool Changed = false;
-
-        if (messageobject["print"].containsKey("command")){
+        //push_status messages are where most of the data is held
+        const char* cmdValue = messageobject["print"]["command"];
+        if (cmdValue){
+        //if (messageobject["print"].containsKey("command")) {
             if (messageobject["print"]["command"] == "gcode_line"           //gcode_line used a lot during print initialisations - Skip these
             || messageobject["print"]["command"] == "project_prepare"       //1 message per print
             || messageobject["print"]["command"] == "project_file"          //1 message per print
             || messageobject["print"]["command"] == "clean_print_error"     //During error (no info)
             || messageobject["print"]["command"] == "resume"                //After error or pause
             || messageobject["print"]["command"] == "get_accessories"       //After error or pause
-            || messageobject["print"]["command"] == "prepare"){             //1 message per print
+            || messageobject["print"]["command"] == "prepare"               //1 message per print
+            || messageobject["print"]["command"] == "extrusion_cali_get"    //Checks every push status
+            ){             
                 return;
             }
         }
@@ -137,14 +146,15 @@ void ParseCallback(char *topic, byte *payload, unsigned int length){
         }
 
         //Check for Door Status
-        if (messageobject["print"].containsKey("home_flag")){
-            //https://github.com/greghesp/ha-bambulab/blob/main/custom_components/bambu_lab/pybambu/const.py#L324
 
-            bool doorState = false;
-            long homeFlag = 0;
-            homeFlag = messageobject["print"]["home_flag"];
-            doorState = homeFlag >> 23; //shift left 23 to the Door bit
-            doorState = doorState & 1;  // remove any bits above Door bit
+        //containsKey() is Deprecated, just read from value and test if not null
+        //const char* home_flagKeyValue = messageobject["print"]["home_flag"];
+        //if (home_flagKeyValue){
+        if (messageobject["print"].containsKey("home_flag")){
+            //https://github.com/greghesp/ha-bambulab/blob/main/custom_components/bambu_lab/pybambu/const.py#L188
+
+            long homeFlag = messageobject["print"]["home_flag"];
+            bool doorState = (((homeFlag >> 23) & 1) == 1);  //shift left 23 to the Door bit & remove any bits above Door bit
 
             if (printerVariables.doorOpen != doorState){
                 printerVariables.doorOpen = doorState;
@@ -166,6 +176,9 @@ void ParseCallback(char *topic, byte *payload, unsigned int length){
         }
 
         //Check BBLP Stage
+        //containsKey() is Deprecated, just read from value and test if not null
+        //const char* stg_curKeyValue = messageobject["print"]["stg_cur"];
+        //if (stg_curKeyValue){
         if (messageobject["print"].containsKey("stg_cur")){
             if (printerVariables.stage != messageobject["print"]["stg_cur"].as<int>() ){
                 printerVariables.stage = messageobject["print"]["stg_cur"];
@@ -179,6 +192,9 @@ void ParseCallback(char *topic, byte *payload, unsigned int length){
         }
 
         //Check BBLP GCode State
+        //containsKey() is Deprecated, just read from value and test if not null
+        //const char* gcode_stateKeyValue = messageobject["print"]["gcode_state"];
+        //if (gcode_stateKeyValue && ((millis() - lastMQTTupdate) > 3000)){
         if (messageobject["print"].containsKey("gcode_state") && ((millis() - lastMQTTupdate) > 3000)){
             String mqttgcodeState = messageobject["print"]["gcode_state"].as<String>();
 
@@ -206,7 +222,10 @@ void ParseCallback(char *topic, byte *payload, unsigned int length){
         }
 
         //Pause Command - quicker, but Only for user generated pause - error & code pauses don't trigger this.
-        if (messageobject["print"].containsKey("command")){
+        //containsKey() is Deprecated, just read from value and test if not null
+        const char* commandKeyValue = messageobject["print"]["command"];
+        if (commandKeyValue){
+        //if (messageobject["print"].containsKey("command")){
             if (messageobject["print"]["command"] == "pause"){
                 lastMQTTupdate = millis();
                 Serial.println(F("MQTT update - manual PAUSE"));
@@ -216,7 +235,10 @@ void ParseCallback(char *topic, byte *payload, unsigned int length){
         }
 
         //Added a delay so the slower MQTT status message doesn't reverse the "system" commands
-        if (messageobject["print"].containsKey("lights_report") && ((millis() - lastMQTTupdate) > 3000)) {
+        //containsKey() is Deprecated, just read from value and test if not null
+        const char* lights_reportKeyValue = messageobject["print"]["lights_report"];
+        if (lights_reportKeyValue && ((millis() - lastMQTTupdate) > 3000)){
+        //if (messageobject["print"].containsKey("lights_report") && ((millis() - lastMQTTupdate) > 3000)) {
             JsonArray lightsReport = messageobject["print"]["lights_report"];
             for (JsonObject light : lightsReport) {
                 if (light["node"] == "chamber_light") {
@@ -238,7 +260,10 @@ void ParseCallback(char *topic, byte *payload, unsigned int length){
         }
         //System Commands are sent quicker than the push_status
         //Message only sent onChange
-        if (messageobject["system"].containsKey("command")) {
+        //containsKey() is Deprecated, just read from value and test if not null
+        const char* syscommandKeyValue = messageobject["system"]["command"];
+        if (syscommandKeyValue){
+        //if (messageobject["system"].containsKey("command")) {
             if (messageobject["system"]["command"] == "ledctrl"){
                 //Ignore Printer sending attempts to turn light on when already on.
                 if(printerVariables.printerledstate != (messageobject["system"]["led_mode"] == "on")){
@@ -259,6 +284,9 @@ void ParseCallback(char *topic, byte *payload, unsigned int length){
         }
 
         //Bambu Health Management System (HMS)
+        //containsKey() is Deprecated, just read from value and test if not null
+        //const char* HMSKeyValue = messageobject["print"]["hms"];
+        //if (HMSKeyValue){
         if (messageobject["print"].containsKey("hms")){
             String oldHMSlevel = "";
             oldHMSlevel = printerVariables.parsedHMSlevel;
